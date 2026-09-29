@@ -15,7 +15,7 @@ return new class extends Migration
             $table->foreignId('package_schedule_id')->constrained()->onDelete('cascade');
             $table->integer('total_passengers');
             $table->decimal('total_amount', 12, 2);
-            $table->enum('status', ['pending', 'paid', 'cancelled', 'completed'])->default('pending');
+            $table->enum('status', ['pending', 'waiting_verification', 'paid', 'cancelled', 'completed'])->default('pending');
             $table->timestamps();
         });
     }

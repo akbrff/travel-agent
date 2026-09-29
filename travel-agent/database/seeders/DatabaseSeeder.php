@@ -13,12 +13,19 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Akun Admin & Customer
+        // 1. Akun Admin
         User::create([
             'name' => 'Admin Travel',
             'email' => 'admin@travel.com',
             'password' => Hash::make('admin123'),
             'role' => 'admin',
+        ]);
+
+        // Akun Customer (febian)
+        User::create([
+            'name' => 'febian',
+            'email' => 'febian@travel.com',
+            'password' => Hash::make('febian123'),
         ]);
 
         // 2. Kategori Sampel

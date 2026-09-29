@@ -6,22 +6,20 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create('booking_passenggers', function (Blueprint $table) {
+        Schema::create('booking_passengers', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('booking_id')->constrained()->onDelete('cascade');
+            $table->string('name');
+            $table->string('id_number'); // No. KTP / Paspor
+            $table->string('phone')->nullable();
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('booking_passenggers');
+        Schema::dropIfExists('booking_passengers');
     }
 };

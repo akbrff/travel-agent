@@ -4,6 +4,7 @@ use App\Http\Controllers\BookingController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\PackageController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\ProfileController;
 
 // Rute Publik
@@ -19,10 +20,25 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::post('/booking', [BookingController::class, 'store'])->name('booking.store');
+    Route::post('/checkout/{booking_code}/pay', [BookingController::class, 'pay'])->name('booking.pay');
     Route::get('/checkout/{booking_code}', [BookingController::class, 'checkout'])->name('booking.checkout');
     Route::get('/my-bookings', [BookingController::class, 'history'])->name('booking.history');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::get('/my-bookings/{booking_code}/ticket', [BookingController::class, 'downloadTicket'])->name('booking.ticket');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    
+});
+
+Route::post('/logout', function () {
+    Auth::logout();
+    request()->session()->invalidate();
+    request()->session()->regenerateToken();
+    return redirect('/');
+})->name('logout');
+
+Route::middleware(['auth'])->group(function () {
+    // Rute cetak E-Ticket PDF
+    Route::get('/my-bookings/{booking_code}/ticket', [BookingController::class, 'downloadTicket'])->name('booking.ticket');
 });
 
 require __DIR__.'/auth.php'; // jika menggunakan Laravel Breeze

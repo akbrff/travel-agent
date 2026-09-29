@@ -12,13 +12,36 @@
     <header class="bg-white shadow-sm sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
             <a href="{{ route('home') }}" class="text-2xl font-bold text-blue-600">TravelAgent</a>
+            
             <nav class="space-x-6 hidden md:flex items-center">
                 <a href="{{ route('home') }}" class="text-gray-600 hover:text-blue-600 font-medium">Beranda</a>
                 <a href="{{ route('packages.index') }}" class="text-blue-600 font-semibold">Paket Wisata</a>
             </nav>
+
             <div class="flex items-center space-x-4">
                 @auth
-                    <a href="/admin" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">Dashboard Admin</a>
+                    @if(auth()->user()->role === 'admin')
+                        <a href="/admin" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">
+                            Dashboard Admin
+                        </a>
+                    @endif
+
+                    <a href="{{ route('booking.history') }}" class="text-gray-600 hover:text-blue-600 text-sm font-medium">
+                        Riwayat Pesanan
+                    </a>
+
+                    <div class="flex items-center space-x-3 border-l border-gray-200 pl-4">
+                        <a href="{{ route('profile.edit') }}" class="text-gray-700 hover:text-blue-600 text-sm font-semibold flex items-center gap-1">
+                            👤 <span>Profil Saya</span>
+                        </a>
+
+                        <form method="POST" action="{{ route('logout') }}" class="inline">
+                            @csrf
+                            <button type="submit" class="bg-rose-50 text-rose-600 hover:bg-rose-100 px-3 py-1.5 rounded-lg text-xs font-semibold transition border border-rose-200">
+                                Keluar
+                            </button>
+                        </form>
+                    </div>
                 @else
                     <a href="{{ route('login') }}" class="text-gray-600 hover:text-blue-600 text-sm font-medium">Masuk</a>
                     <a href="{{ route('register') }}" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">Daftar</a>
@@ -68,18 +91,36 @@
             <div class="lg:col-span-1">
                 <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-md sticky top-24 space-y-6">
                     <h3 class="text-xl font-bold text-gray-900">Pesan Sekarang</h3>
+
+                    <!-- Pesan Error Validasi -->
+                    @if(session('error'))
+                        <div class="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl text-xs font-medium">
+                            ⚠️ {{ session('error') }}
+                        </div>
+                    @endif
+
+                    @if($errors->any())
+                        <div class="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl text-xs space-y-1">
+                            <p class="font-bold">Gagal memproses pemesanan:</p>
+                            <ul class="list-disc list-inside">
+                                @foreach($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
                     
                     @if($package->schedules->count() > 0)
                         @auth
-                            <!-- Form Pemesanan (Hanya Tampil Jika Sudah Login) -->
-                            <form action="{{ route('booking.store') }}" method="POST" class="space-y-4">
+                            <!-- Form Pemesanan -->
+                            <form action="{{ route('booking.store') }}" method="POST" class="space-y-4" id="bookingForm">
                                 @csrf
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Pilih Tanggal Keberangkatan</label>
                                     <select name="schedule_id" class="w-full border-gray-300 border p-3 rounded-xl focus:ring-blue-500 focus:border-blue-500 text-sm" required>
                                         @foreach($package->schedules as $sched)
                                             <option value="{{ $sched->id }}">
-                                                {{ \Carbon\Carbon::parse($sched->departure_date)->format('d M Y') }} - Rp {{ number_format($sched->price_per_person, 0, ',', '.') }}/pax (Sisa: {{ $sched->remaining_quota }})
+                                                {{ \Carbon\Carbon::parse($sched->departure_date)->format('d M Y') }} - Rp {{ number_format($sched->price_per_person, 0, ',', '.') }}/pax (Sisa: {{$sched->remaining_quota }})
                                             </option>
                                         @endforeach
                                     </select>
@@ -87,18 +128,20 @@
 
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Jumlah Peserta (Pax)</label>
-                                    <input type="number" name="passengers" min="1" value="1" class="w-full border-gray-300 border p-3 rounded-xl text-sm" required>
+                                    <input type="number" id="paxInput" name="passengers" min="1" value="1" class="w-full border-gray-300 border p-3 rounded-xl text-sm" required>
                                 </div>
+
+                                <!-- Container Input Detail Penumpang -->
+                                <div id="passengerFieldsContainer" class="space-y-3 pt-2"></div>
 
                                 <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow transition">Lanjut ke Pemesanan</button>
                             </form>
                         @else
-                            <!-- Boks Peringatan (Tampil Jika Belum Login) -->
                             <div class="bg-blue-50 border border-blue-100 p-5 rounded-xl text-center space-y-3">
                                 <p class="text-sm text-blue-900 font-medium">Kamu harus terdaftar dan masuk ke akun terlebih dahulu untuk memesan paket ini.</p>
                                 <div class="flex space-x-2 pt-1">
-                                    <a href="{{ route('register') }}" class="w-1/2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-3 rounded-xl text-sm transition">Daftar Akun</a>
-                                    <a href="{{ route('login') }}" class="w-1/2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2.5 px-3 rounded-xl text-sm transition">Masuk</a>
+                                    <a href="{{ route('register') }}" class="w-1/2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-3 rounded-xl text-sm transition text-center">Daftar Akun</a>
+                                    <a href="{{ route('login') }}" class="w-1/2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2.5 px-3 rounded-xl text-sm transition text-center">Masuk</a>
                                 </div>
                             </div>
                         @endauth
@@ -117,6 +160,41 @@
     <footer class="bg-white border-t border-gray-200 py-8 text-center text-sm text-gray-500 mt-16">
         &copy; {{ date('Y') }} TravelAgent. All rights reserved.
     </footer>
+
+    <!-- Script Generator Input Penumpang Dinamis -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const paxInput = document.getElementById('paxInput');
+            const container = document.getElementById('passengerFieldsContainer');
+
+            if (paxInput && container) {
+                function generatePassengerFields() {
+                    const count = parseInt(paxInput.value) || 1;
+                    container.innerHTML = '<h4 class="font-bold text-gray-800 text-sm border-t pt-3">Detail Data Penumpang</h4>';
+
+                    for (let i = 0; i < count; i++) {
+                        const passengerHtml = `
+                            <div class="bg-gray-50 p-3 rounded-xl border border-gray-200 space-y-2">
+                                <p class="text-xs font-bold text-blue-600">Penumpang ${i + 1}</p>
+                                <div>
+                                    <input type="text" name="passengers_data[${i}][name]" placeholder="Nama Lengkap" class="w-full border-gray-300 border p-2 rounded-lg text-xs" required>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <input type="text" name="passengers_data[${i}][id_number]" placeholder="No. KTP / Paspor" class="w-full border-gray-300 border p-2 rounded-lg text-xs" required>
+                                    <input type="text" name="passengers_data[${i}][phone]" placeholder="No. HP / WA" class="w-full border-gray-300 border p-2 rounded-lg text-xs">
+                                </div>
+                            </div>
+                        `;
+                        container.insertAdjacentHTML('beforeend', passengerHtml);
+                    }
+                }
+
+                paxInput.addEventListener('input', generatePassengerFields);
+                paxInput.addEventListener('change', generatePassengerFields);
+                generatePassengerFields();
+            }
+        });
+    </script>
 
 </body>
 </html>

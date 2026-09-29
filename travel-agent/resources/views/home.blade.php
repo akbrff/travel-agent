@@ -12,18 +12,38 @@
     <header class="bg-white shadow-sm sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
             <a href="{{ route('home') }}" class="text-2xl font-bold text-blue-600">TravelAgent</a>
+            
             <nav class="space-x-6 hidden md:flex items-center">
-                <a href="{{ route('home') }}" class="text-gray-600 hover:text-blue-600 font-medium">Beranda</a>
+                <a href="{{ route('home') }}" class="text-blue-600 font-semibold">Beranda</a>
                 <a href="{{ route('packages.index') }}" class="text-gray-600 hover:text-blue-600 font-medium">Paket Wisata</a>
             </nav>
+
             <div class="flex items-center space-x-4">
                 @auth
-                    <a href="/admin" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">Dashboard Admin</a>
-                    <a href="{{ route('booking.history') }}" class="text-gray-600 hover:text-blue-600 text-sm font-medium">Riwayat Pesanan</a>
-                    <a href="{{ route('profile.edit') }}" class="text-gray-600 hover:text-blue-600 text-sm font-medium">Profil Saya</a>
+                    <!-- Dashboard Admin (HANYA tampil jika role === admin) -->
                     @if(auth()->user()->role === 'admin')
-                        <a href="/admin" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">Dashboard Admin</a>
+                        <a href="/admin" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">
+                            Dashboard Admin
+                        </a>
                     @endif
+
+                    <a href="{{ route('booking.history') }}" class="text-gray-600 hover:text-blue-600 text-sm font-medium">
+                        Riwayat Pesanan
+                    </a>
+
+                    <!-- Area Profil Saya & Logout -->
+                    <div class="flex items-center space-x-3 border-l border-gray-200 pl-4">
+                        <a href="{{ route('profile.edit') }}" class="text-gray-700 hover:text-blue-600 text-sm font-semibold flex items-center gap-1">
+                            👤 <span>Profil Saya</span>
+                        </a>
+
+                        <form method="POST" action="{{ route('logout') }}" class="inline">
+                            @csrf
+                            <button type="submit" class="bg-rose-50 text-rose-600 hover:bg-rose-100 px-3 py-1.5 rounded-lg text-xs font-semibold transition border border-rose-200">
+                                Keluar
+                            </button>
+                        </form>
+                    </div>
                 @else
                     <a href="{{ route('login') }}" class="text-gray-600 hover:text-blue-600 text-sm font-medium">Masuk</a>
                     <a href="{{ route('register') }}" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">Daftar</a>
