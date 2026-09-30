@@ -103,7 +103,7 @@
                         <div class="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl text-xs space-y-1">
                             <p class="font-bold">Gagal memproses pemesanan:</p>
                             <ul class="list-disc list-inside">
-                                @foreach($errors->all() as $error)
+                                @foreach($errors->all() as$error)
                                     <li>{{ $error }}</li>
                                 @endforeach
                             </ul>
@@ -118,7 +118,7 @@
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Pilih Tanggal Keberangkatan</label>
                                     <select name="schedule_id" class="w-full border-gray-300 border p-3 rounded-xl focus:ring-blue-500 focus:border-blue-500 text-sm" required>
-                                        @foreach($package->schedules as $sched)
+                                        @foreach($package->schedules as$sched)
                                             <option value="{{ $sched->id }}">
                                                 {{ \Carbon\Carbon::parse($sched->departure_date)->format('d M Y') }} - Rp {{ number_format($sched->price_per_person, 0, ',', '.') }}/pax (Sisa: {{$sched->remaining_quota }})
                                             </option>
@@ -133,6 +133,21 @@
 
                                 <!-- Container Input Detail Penumpang -->
                                 <div id="passengerFieldsContainer" class="space-y-3 pt-2"></div>
+
+                                <!-- Opsi Layanan Tambahan (Add-ons) -->
+                                <div class="space-y-2 pt-2 border-t border-gray-100">
+                                    <label class="block text-xs font-bold text-gray-700 uppercase">Layanan Tambahan (Opsional)</label>
+                                    
+                                    <label class="flex items-center space-x-3 bg-gray-50 p-2.5 rounded-xl border border-gray-200 cursor-pointer text-xs">
+                                        <input type="checkbox" name="addons[]" value="150000" class="rounded text-blue-600 focus:ring-blue-500 h-4 w-4">
+                                        <span class="text-gray-700 font-medium">🚖 Penjemputan Bandara / Stasiun (+Rp 150.000)</span>
+                                    </label>
+
+                                    <label class="flex items-center space-x-3 bg-gray-50 p-2.5 rounded-xl border border-gray-200 cursor-pointer text-xs">
+                                        <input type="checkbox" name="addons[]" value="250000" class="rounded text-blue-600 focus:ring-blue-500 h-4 w-4">
+                                        <span class="text-gray-700 font-medium">📷 Sewa Kamera & Dokumentasi Lensa (+Rp 250.000)</span>
+                                    </label>
+                                </div>
 
                                 <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow transition">Lanjut ke Pemesanan</button>
                             </form>

@@ -19,55 +19,61 @@ class BookingController extends Controller
         $request->validate([
             'schedule_id' => 'required|exists:package_schedules,id',
             'passengers' => 'required|numeric|min:1',
-            'passengers_data' => 'required|array|min:' . $request->passengers,
-            'passengers_data.*.name' => 'required|string|max:255',
-            'passengers_data.*.id_number' => 'required|string|max:50',
-            'passengers_data.*.phone' => 'nullable|string|max:20',
+            'passengers_data' => 'required|array|min:1',
+            'passengers_data.*.name' => 'required|string',
+            'passengers_data.*.id_number' => 'required|string',
+            'passengers_data.*.phone' => 'nullable|string',
+            'addons' => 'nullable|array', // Validasi input add-ons (array)
         ]);
 
-        try {
-            $booking = DB::transaction(function () use ($request) {
-                // Lock baris jadwal di database untuk mencegah race condition / overbooking
-                $schedule = PackageSchedule::where('id', $request->schedule_id)
-                    ->lockForUpdate()
-                    ->firstOrFail();
+        return DB::transaction(function () use ($request) {
+            $schedule = PackageSchedule::where('id', $request->schedule_id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-                if ($schedule->remaining_quota < $request->passengers) {
-                    throw new \Exception('Sisa kuota tidak mencukupi untuk jumlah pax yang dipesan.');
+            if ($schedule->remaining_quota < $request->passengers) {
+                return back()->with('error', 'Maaf, kuota tersisa hanya ' . $schedule->remaining_quota . ' pax.');
+            }
+
+            // Hitung biaya dasar paket
+            $basePrice = $schedule->price_per_person * $request->passengers;
+
+            // Hitung biaya opsi tambahan (Add-ons)
+            $addonTotal = 0;
+            if ($request->has('addons')) {
+                foreach ($request->addons as $addonCost) {
+                    $addonTotal += (int) $addonCost;
                 }
+            }
 
-                $totalAmount = $schedule->price_per_person * $request->passengers;
-                $bookingCode = 'TRV-' . strtoupper(Str::random(6));
+            $totalAmount = $basePrice + $addonTotal;
 
-                $booking = Booking::create([
-                    'booking_code' => $bookingCode,
-                    'user_id' => auth()->id(),
-                    'package_schedule_id' => $schedule->id,
-                    'total_passengers' => $request->passengers,
-                    'total_amount' => $totalAmount,
-                    'status' => 'pending',
+            // Buat data booking utama
+            $booking = Booking::create([
+                'booking_code' => 'BK-' . strtoupper(Str::random(8)),
+                'user_id' => auth()->id(),
+                'package_schedule_id' => $schedule->id,
+                'total_passengers' => $request->passengers,
+                'total_amount' => $totalAmount,
+                'status' => 'pending',
+            ]);
+
+            // Kurangi kuota
+            $schedule->decrement('remaining_quota', $request->passengers);
+
+            // Simpan data penumpang
+            foreach ($request->passengers_data as $pData) {
+                BookingPassenger::create([
+                    'booking_id' => $booking->id,
+                    'name' => $pData['name'],
+                    'id_number' => $pData['id_number'],
+                    'phone' => $pData['phone'] ?? null,
                 ]);
+            }
 
-                foreach ($request->passengers_data as $passengerData) {
-                    BookingPassenger::create([
-                        'booking_id' => $booking->id,
-                        'name' => $passengerData['name'],
-                        'id_number' => $passengerData['id_number'],
-                        'phone' => $passengerData['phone'] ?? null,
-                    ]);
-                }
-
-                // Kurangi sisa kuota paket
-                $schedule->decrement('remaining_quota', $request->passengers);
-
-                return $booking;
-            });
-
-            return redirect()->route('booking.checkout', $booking->booking_code);
-
-        } catch (\Exception $e) {
-            return back()->with('error', $e->getMessage());
-        }
+            return redirect()->route('booking.checkout', $booking->booking_code)
+                ->with('success', 'Pemesanan berhasil dibuat! Silakan lakukan pembayaran.');
+        });
     }
 
     public function checkout($booking_code)
