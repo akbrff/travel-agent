@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 80" width="100%" height="100%">
+  <defs>
+    <!-- Gradien Utama Blue to Cyan -->
+    <linearGradient id="kelanaiBrandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563EB" />
+      <stop offset="100%" stop-color="#06B6D4" />
+    </linearGradient>
+    <!-- Gradien Accent AI Sparkle -->
+    <linearGradient id="aiSparkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#818CF8" />
+    </linearGradient>
+  </defs>
+
+  <!-- Icon: Combination Pin + AI Spark -->
+  <g transform="translate(10, 8)">
+    <!-- Pin Destinasi -->
+    <path d="M32 4 C18.2 4 7 15.2 7 29 C7 45.5 32 64 32 64 C32 64 57 45.5 57 29 C57 15.2 45.8 4 32 4 Z" fill="url(#kelanaiBrandGrad)" />
+    <!-- AI Sparkle Inner Compass Needle -->
+    <path d="M32 17 L36 25 L44 29 L36 33 L32 41 L28 33 L20 29 L28 25 Z" fill="#FFFFFF" />
+    <!-- Glowing AI Node -->
+    <circle cx="50" cy="11" r="4.5" fill="url(#aiSparkGrad)" />
+  </g>
+
+  <!-- Typography Brand Name -->
+  <text x="82" y="45" font-family="Inter, system-ui, -apple-system, sans-serif" font-weight="900" font-size="34" fill="#0F172A" letter-spacing="-0.8">
+    Kelan<tspan fill="url(#kelanaiBrandGrad)">ai</tspan>
+  </text>
+
+  <!-- Tagline Text -->
+  <text x="83" y="63" font-family="Inter, system-ui, -apple-system, sans-serif" font-weight="600" font-size="10" fill="#64748B" letter-spacing="1">
+    RENCANAKAN • BERANGKAT • NIKMATI
+  </text>
+</svg>
