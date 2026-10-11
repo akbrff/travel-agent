@@ -60,7 +60,9 @@ class TravelPackageResource extends Resource
                 FileUpload::make('featured_image')
                     ->label('Foto Utama')
                     ->image()
+                    ->disk('public')
                     ->directory('travel-packages')
+                    ->visibility('public')
                     ->required(),
                 RichEditor::make('description')
                     ->label('Deskripsi Paket')
@@ -79,7 +81,14 @@ class TravelPackageResource extends Resource
     {
         return $table
             ->columns([
-                ImageColumn::make('featured_image')->label('Foto'),
+                ImageColumn::make('featured_image')
+                    ->label('Foto')
+                    ->disk('public')
+                    ->visibility('public')
+                    ->height(60)
+                    ->width('auto')
+                    ->square(false)
+                    ->extraImgAttributes(['class' => 'object-contain rounded-md shadow-sm']),
                 TextColumn::make('title')->label('Judul')->searchable()->sortable(),
                 TextColumn::make('category.name')->label('Kategori'),
                 TextColumn::make('location')->label('Lokasi'),

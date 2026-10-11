@@ -59,7 +59,7 @@
             
             <!-- Information Column -->
             <div class="lg:col-span-2 space-y-6">
-                <img src="{{ Storage::url($package->featured_image) }}" alt="{{ $package->title }}" class="w-full h-80 md:h-96 object-cover rounded-2xl shadow-sm">
+                <img src="{{ Storage::url($package->featured_image) }}" alt="{{ $package->title }}" class="w-full h-auto max-h-[500px] object-cover rounded-2xl shadow-sm">
 
                 <div class="bg-white p-8 rounded-2xl border border-gray-100 space-y-4">
                     <span class="bg-blue-50 text-blue-600 text-xs px-3 py-1 rounded-full font-semibold">{{ $package->category->name ?? 'Uncategorized' }}</span>
