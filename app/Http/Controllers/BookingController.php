@@ -8,9 +8,9 @@ use App\Models\PackageSchedule;
 use App\Models\Payment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
-
 
 class BookingController extends Controller
 {
@@ -37,14 +37,17 @@ class BookingController extends Controller
                 ->firstOrFail();
 
             if ($schedule->remaining_quota < $request->passengers) {
-                return back()->with('error', 'Maaf, kuota tersisa hanya ' . $schedule->remaining_quota . ' pax.');
+                return back()->with(
+                    'error',
+                    'Maaf, kuota tersisa hanya ' .
+                    $schedule->remaining_quota . ' pax.'
+                );
             }
 
-            // Hitung biaya dasar paket
             $basePrice = $schedule->price_per_person * $request->passengers;
 
-            // Hitung biaya opsi tambahan (Add-ons)
             $addonTotal = 0;
+
             if ($request->has('addons')) {
                 foreach ($request->addons as $addonCost) {
                     $addonTotal += (int) $addonCost;
@@ -53,7 +56,6 @@ class BookingController extends Controller
 
             $totalAmount = $basePrice + $addonTotal;
 
-            // Buat data booking utama
             $booking = Booking::create([
                 'booking_code' => 'BK-' . strtoupper(Str::random(8)),
                 'user_id' => auth()->id(),
@@ -63,10 +65,11 @@ class BookingController extends Controller
                 'status' => 'pending',
             ]);
 
-            // Kurangi kuota
-            $schedule->decrement('remaining_quota', $request->passengers);
+            $schedule->decrement(
+                'remaining_quota',
+                $request->passengers
+            );
 
-            // Simpan data penumpang
             foreach ($request->passengers_data as $pData) {
                 BookingPassenger::create([
                     'booking_id' => $booking->id,
@@ -76,14 +79,22 @@ class BookingController extends Controller
                 ]);
             }
 
-            return redirect()->route('booking.checkout', $booking->booking_code)
-                ->with('success', 'Pemesanan berhasil dibuat! Silakan lakukan pembayaran.');
+            return redirect()
+                ->route('booking.checkout', $booking->booking_code)
+                ->with(
+                    'success',
+                    'Pemesanan berhasil dibuat! Silakan lakukan pembayaran.'
+                );
         });
     }
 
     public function checkout($booking_code)
     {
-        $booking = Booking::with(['packageSchedule.travelPackage', 'user', 'passengers'])
+        $booking = Booking::with([
+            'packageSchedule.travelPackage',
+            'user',
+            'passengers',
+        ])
             ->where('booking_code', $booking_code)
             ->where('user_id', auth()->id())
             ->firstOrFail();
@@ -93,36 +104,140 @@ class BookingController extends Controller
 
     public function pay(Request $request, $booking_code)
     {
-        $booking = Booking::where('booking_code', $booking_code)
-            ->where('user_id', auth()->id())
-            ->firstOrFail();
-
         $request->validate([
             'bank_name' => 'required|string|max:100',
             'account_name' => 'required|string|max:100',
             'proof_image' => 'required|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
-        $imagePath = $request->file('proof_image')->store('payment-proofs', 'public');
+        $booking = Booking::where('booking_code', $booking_code)
+            ->where('user_id', auth()->id())
+            ->firstOrFail();
 
-        Payment::create([
-            'booking_id' => $booking->id,
-            'bank_name' => $request->bank_name,
-            'account_name' => $request->account_name,
-            'proof_image' => $imagePath,
-            'amount' => $booking->total_amount,
-        ]);
+        // Simpan file baru terlebih dahulu.
+        $newImagePath = $request->file('proof_image')
+            ->store('payment-proofs', 'public');
 
-        $booking->update([
-            'status' => 'waiting_verification',
-        ]);
+        $oldImagePath = null;
 
-        return back()->with('success', 'Bukti pembayaran berhasil diunggah! Mohon tunggu verifikasi admin.');
+        try {
+            DB::transaction(function () use (
+                $booking,
+                $request,
+                $newImagePath,
+                &$oldImagePath
+            ) {
+                // Kunci booking agar proses pembayaran tidak bertabrakan.
+                $lockedBooking = Booking::where('id', $booking->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                // Pembayaran hanya dapat dikirim untuk status ini.
+                if (!in_array(
+                    $lockedBooking->status,
+                    ['pending', 'cancelled'],
+                    true
+                )) {
+                    throw new \RuntimeException(
+                        'Booking tidak dapat menerima pembayaran pada status saat ini.'
+                    );
+                }
+
+                // Jika booking sebelumnya dibatalkan admin,
+                // periksa dan ambil kembali kuotanya.
+                if ($lockedBooking->status === 'cancelled') {
+                    $schedule = PackageSchedule::where(
+                        'id',
+                        $lockedBooking->package_schedule_id
+                    )
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+                    if (
+                        $schedule->remaining_quota <
+                        $lockedBooking->total_passengers
+                    ) {
+                        throw new \RuntimeException(
+                            'Kuota keberangkatan tidak mencukupi. Silakan hubungi admin.'
+                        );
+                    }
+
+                    $schedule->decrement(
+                        'remaining_quota',
+                        $lockedBooking->total_passengers
+                    );
+                }
+
+                // Cari pembayaran lama berdasarkan booking_id.
+                // Jika ada, perbarui record tersebut.
+                $payment = Payment::where(
+                    'booking_id',
+                    $lockedBooking->id
+                )
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($payment) {
+                    $oldImagePath = $payment->proof_image;
+
+                    $payment->update([
+                        'bank_name' => $request->bank_name,
+                        'account_name' => $request->account_name,
+                        'proof_image' => $newImagePath,
+                        'amount' => $lockedBooking->total_amount,
+                    ]);
+                } else {
+                    Payment::create([
+                        'booking_id' => $lockedBooking->id,
+                        'bank_name' => $request->bank_name,
+                        'account_name' => $request->account_name,
+                        'proof_image' => $newImagePath,
+                        'amount' => $lockedBooking->total_amount,
+                    ]);
+                }
+
+                // Tunggu verifikasi admin.
+                $lockedBooking->update([
+                    'status' => 'waiting_verification',
+                ]);
+            });
+        } catch (\Throwable $e) {
+            // Jika proses gagal, hapus file baru agar tidak menumpuk.
+            Storage::disk('public')->delete($newImagePath);
+
+            if ($e instanceof \RuntimeException) {
+                return back()->with('error', $e->getMessage());
+            }
+
+            report($e);
+
+            return back()->with(
+                'error',
+                'Bukti pembayaran gagal disimpan. Silakan coba kembali.'
+            );
+        }
+
+        // Hapus bukti lama hanya setelah transaksi berhasil.
+        if (
+            $oldImagePath &&
+            $oldImagePath !== $newImagePath
+        ) {
+            Storage::disk('public')->delete($oldImagePath);
+        }
+
+        return redirect()
+            ->route('booking.checkout', $booking->booking_code)
+            ->with(
+                'success',
+                'Bukti pembayaran berhasil diunggah! Mohon tunggu verifikasi admin.'
+            );
     }
 
     public function history()
     {
-        $bookings = Booking::with(['packageSchedule.travelPackage'])
+        $bookings = Booking::with([
+            'packageSchedule.travelPackage',
+        ])
             ->where('user_id', auth()->id())
             ->latest()
             ->get();
@@ -132,16 +247,21 @@ class BookingController extends Controller
 
     public function downloadTicket($booking_code)
     {
-        $booking = Booking::with(['packageSchedule.travelPackage', 'user', 'passengers'])
+        $booking = Booking::with([
+            'packageSchedule.travelPackage',
+            'user',
+            'passengers',
+        ])
             ->where('booking_code', $booking_code)
             ->where('user_id', auth()->id())
-            ->where('status', 'paid') // Hanya pesanan yang sudah Paid/Lunas
+            ->where('status', 'paid')
             ->firstOrFail();
 
-        // Load view khusus PDF E-Ticket
         $pdf = Pdf::loadView('pdf.eticket', compact('booking'))
             ->setPaper('a4', 'portrait');
 
-        return $pdf->download('E-Ticket-' . $booking->booking_code . '.pdf');
+        return $pdf->download(
+            'E-Ticket-' . $booking->booking_code . '.pdf'
+        );
     }
 }

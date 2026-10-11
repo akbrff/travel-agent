@@ -83,7 +83,14 @@
                 </div>
             @endif
 
-            @if($booking->status === 'pending')
+            @if(in_array($booking->status, ['pending', 'cancelled']))
+                @if($booking->status === 'cancelled')
+                    <div class="bg-red-50 text-red-700 p-4 rounded-xl text-sm border border-red-100">
+                        <strong>Pembayaran ditolak.</strong>
+                        Silakan periksa kembali pembayaran Anda, lalu unggah bukti transfer yang baru.
+                    </div>
+                @endif
+
                 <!-- Form Upload Bukti Transfer -->
                 <form action="{{ route('booking.pay', $booking->booking_code) }}" method="POST" enctype="multipart/form-data" class="space-y-4 pt-4 border-t border-gray-100">
                     @csrf
@@ -101,14 +108,14 @@
 
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Unggah Struk / Bukti Transfer (JPG, PNG, maks 2MB)</label>
-                        <input type="file" name="proof_image" accept="image/*" class="w-full border-gray-300 border p-2 rounded-xl text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" required>
+                        <input type="file" name="proof_image" accept="image/jpeg,image/png,image/jpg" class="w-full border-gray-300 border p-2 rounded-xl text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" required>
                     </div>
 
                     <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow transition">Unggah Bukti Pembayaran</button>
                 </form>
             @elseif($booking->status === 'waiting_verification')
                 <div class="bg-amber-50 text-amber-800 p-4 rounded-xl text-sm text-center border border-amber-100">
-                    ⌛ Bukti pembayaran Anda sedang diverifikasi oleh admin. Silakan cek berkala halaman ini atau menu <strong>Riwayat Pesanan</strong>.
+                    Bukti pembayaran Anda sedang diverifikasi oleh admin. Silakan cek berkala halaman ini atau menu <strong>Riwayat Pesanan</strong>.
                 </div>
             @endif
 

@@ -12,7 +12,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Actions\Action;
-use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class BookingResource extends Resource
 {
@@ -29,18 +29,23 @@ class BookingResource extends Resource
                 Forms\Components\Select::make('user_id')
                     ->relationship('user', 'name')
                     ->required(),
+
                 Forms\Components\Select::make('package_schedule_id')
                     ->relationship('packageSchedule', 'id')
                     ->required(),
+
                 Forms\Components\TextInput::make('booking_code')
                     ->required()
                     ->maxLength(255),
+
                 Forms\Components\TextInput::make('total_passengers')
                     ->required()
                     ->numeric(),
+
                 Forms\Components\TextInput::make('total_amount')
                     ->required()
                     ->numeric(),
+
                 Forms\Components\Select::make('status')
                     ->options([
                         'pending' => 'Pending',
@@ -97,58 +102,121 @@ class BookingResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->actions([
-                // 1. Tombol Lihat Bukti Pembayaran
+                // 1. Lihat Bukti Pembayaran
                 Action::make('view_payment')
                     ->label('Bukti Bayar')
                     ->icon('heroicon-o-document-magnifying-glass')
                     ->color('info')
                     ->visible(fn (Booking $record) => $record->payment !== null)
                     ->modalHeading('Detail Bukti Pembayaran')
-                    ->modalContent(fn (Booking $record) => view('filament.pages.payment-modal', [
-                        'payment' => $record->payment
-                    ]))
+                    ->modalContent(fn (Booking $record) => view(
+                        'filament.pages.payment-modal',
+                        [
+                            'payment' => $record->payment,
+                        ]
+                    ))
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Tutup'),
 
-                // 2. Tombol Setujui Pembayaran (Approve)
+                // 2. Setujui Pembayaran
                 Action::make('approve_payment')
                     ->label('Setujui')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('Setujui Pembayaran?')
-                    ->modalDescription('Status pesanan akan diubah menjadi PAID dan E-Ticket dapat diunduh oleh pengguna.')
-                    ->visible(fn (Booking $record) => $record->status === 'waiting_verification')
+                    ->modalDescription(
+                        'Booking akan ditandai lunas jika masih menunggu verifikasi dan nominal pembayaran sesuai.'
+                    )
+                    ->visible(
+                        fn (Booking $record) =>
+                            $record->status === 'waiting_verification'
+                    )
                     ->action(function (Booking $record) {
-                        $record->update(['status' => 'paid']);
+                        DB::transaction(function () use ($record) {
+                            $booking = Booking::whereKey($record->id)
+                                ->lockForUpdate()
+                                ->firstOrFail();
+
+                            if ($booking->status !== 'waiting_verification') {
+                                throw new \RuntimeException(
+                                    'Status booking sudah berubah. Muat ulang halaman dan periksa kembali.'
+                                );
+                            }
+
+                            $payment = $booking->payment;
+
+                            if (
+                                !$payment ||
+                                (float) $payment->amount !==
+                                (float) $booking->total_amount
+                            ) {
+                                throw new \RuntimeException(
+                                    'Bukti pembayaran tidak ditemukan atau nominal pembayaran tidak sesuai.'
+                                );
+                            }
+
+                            $booking->update([
+                                'status' => 'paid',
+                            ]);
+                        });
 
                         Notification::make()
                             ->title('Pembayaran Disetujui')
-                            ->body("Booking {$record->booking_code} telah dikonfirmasi (PAID).")
+                            ->body(
+                                "Booking {$record->booking_code} telah ditandai lunas."
+                            )
                             ->success()
                             ->send();
                     }),
 
-                // 3. Tombol Tolak Pembayaran (Reject)
+                // 3. Tolak Pembayaran
                 Action::make('reject_payment')
                     ->label('Tolak')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
                     ->requiresConfirmation()
-                    ->modalHeading('Tolak Pembayaran?')
-                    ->modalDescription('Status pesanan akan diubah menjadi CANCELLED dan kuota jadwal paket akan otomatis dikembalikan.')
-                    ->visible(fn (Booking $record) => $record->status === 'waiting_verification' || $record->status === 'pending')
+                    ->modalHeading('Tolak Bukti Pembayaran?')
+                    ->modalDescription(
+                        'Bukti pembayaran akan ditolak. Status booking menjadi dibatalkan sementara dan pengguna dapat mengunggah bukti baru pada booking yang sama.'
+                    )
+                    ->visible(
+                        fn (Booking $record) =>
+                            $record->status === 'waiting_verification'
+                    )
                     ->action(function (Booking $record) {
-                        $record->update(['status' => 'cancelled']);
+                        DB::transaction(function () use ($record) {
+                            $booking = Booking::whereKey($record->id)
+                                ->lockForUpdate()
+                                ->firstOrFail();
+
+                            if ($booking->status !== 'waiting_verification') {
+                                throw new \RuntimeException(
+                                    'Status booking sudah berubah. Muat ulang halaman dan periksa kembali.'
+                                );
+                            }
+
+                            /*
+                             * Pengembalian kuota ditangani oleh
+                             * BookingObserver saat status berubah
+                             * menjadi cancelled.
+                             *
+                             * Jangan menambahkan kuota secara manual
+                             * di aksi ini agar tidak terjadi duplikasi.
+                             */
+                            $booking->update([
+                                'status' => 'cancelled',
+                            ]);
+                        });
 
                         Notification::make()
-                            ->title('Pembayaran Ditolak')
-                            ->body("Booking {$record->booking_code} telah dibatalkan dan kuota dipulihkan.")
+                            ->title('Bukti Pembayaran Ditolak')
+                            ->body(
+                                "Booking {$record->booking_code} dibatalkan sementara. Pengguna dapat mengunggah bukti pembayaran baru."
+                            )
                             ->warning()
                             ->send();
                     }),
-
-                Tables\Actions\EditAction::make(),
             ]);
     }
 
@@ -163,8 +231,6 @@ class BookingResource extends Resource
     {
         return [
             'index' => Pages\ListBookings::route('/'),
-            'create' => Pages\CreateBooking::route('/create'),
-            'edit' => Pages\EditBooking::route('/{record}/edit'),
         ];
     }
 }
